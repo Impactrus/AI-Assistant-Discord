@@ -29,8 +29,8 @@ GEMINI_API_KEY = config_keys.get("api")
 
 # Konfiguracja Google Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
-# Używamy modelu gemini-1.5-flash (poprzedni gemini-pro został wycofany z API)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Używamy modelu gemini-2.5-flash (poprzednie wersje zostały wycofane z darmowego API)
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # Konfiguracja uprawnień bota (Intents)
 intents = discord.Intents.default()

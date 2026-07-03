@@ -67,20 +67,108 @@ async def on_message(message):
             await message.reply("Słucham Cię! O co chciałbyś zapytać?")
             return
 
+        # Analiza intencji za pomocą słów kluczowych w zapytaniu do bota
+        prompt_lower = prompt.lower()
+        
+        # 1. Intencja: CZYSZCZENIE KANAŁU
+        if "wyczyść" in prompt_lower or "usun" in prompt_lower or "usuń" in prompt_lower:
+            if "wiadomo" in prompt_lower or "kanał" in prompt_lower or "czat" in prompt_lower or "czyszcz" in prompt_lower:
+                if message.author.guild_permissions.manage_messages:
+                    async with message.channel.typing():
+                        try:
+                            # Wyciągamy cyfry z tekstu (np. "wyczyść 50" -> 50)
+                            import re
+                            numbers = re.findall(r'\d+', prompt)
+                            limit_amount = int(numbers[0]) if numbers else 100
+                            
+                            # Czyszczenie wiadomości
+                            deleted = await message.channel.purge(limit=limit_amount + 1)
+                            await message.channel.send(f"🧹 Pomyślnie wyczyszczono {len(deleted) - 1} wiadomości na żądanie administratora.", delete_after=5.0)
+                            return
+                        except Exception as e:
+                            await message.reply(f"Nie udało się wyczyścić wiadomości: {e}")
+                            return
+                else:
+                    await message.reply("Nie masz uprawnień do zarządzania wiadomościami, aby zlecić czyszczenie kanału.")
+                    return
+
+        # 2. Intencja: TWORZENIE KANAŁÓW / ZAKŁADEK
+        if "stwórz" in prompt_lower or "stworz" in prompt_lower or "utwórz" in prompt_lower or "utworz" in prompt_lower:
+            if "kanał" in prompt_lower or "kategori" in prompt_lower or "zakładk" in prompt_lower or "zakladk" in prompt_lower:
+                if message.author.guild_permissions.manage_channels:
+                    async with message.channel.typing():
+                        try:
+                            # Tworzymy systemowy prompt do Gemini, żeby wyciągnął parametry w czystym formacie JSON
+                            system_instruction = (
+                                "Zanalizuj poniższą prośbę użytkownika o stworzenie kanałów na Discordzie. "
+                                "Zwróć odpowiedź WYŁĄCZNIE w formacie JSON bez żadnych dodatkowych opisów, markdownu ani znaków ```. "
+                                "Format JSON ma wyglądać dokładnie tak:\n"
+                                "{\n"
+                                "  \"kategoria\": \"Nazwa Kategorii (lub puste jeśli brak)\",\n"
+                                "  \"kanal_tekstowy\": \"nazwa-kanalu-tekstowego (lub puste jeśli brak)\",\n"
+                                "  \"kanal_glosowy\": \"nazwa-kanalu-glosowego (lub puste jeśli brak)\",\n"
+                                "  \"limit_osob\": 0 (lub cyfra limitu dla głosowego)\n"
+                                "}\n\n"
+                                f"Prośba: {prompt}"
+                            )
+                            ai_response = model.generate_content(system_instruction).text.strip()
+                            # Usuwamy ewentualne formatowanie markdownowe, jeśli AI je dodało
+                            ai_response = ai_response.replace("```json", "").replace("```", "").strip()
+                            
+                            import json
+                            data = json.loads(ai_response)
+                            
+                            guild = message.guild
+                            category_name = data.get("kategoria")
+                            text_name = data.get("kanal_tekstowy")
+                            voice_name = data.get("kanal_glosowy")
+                            user_limit = data.get("limit_osob", 0)
+                            
+                            created_info = []
+                            category = None
+                            
+                            # Tworzenie kategorii
+                            if category_name:
+                                category = discord.utils.get(guild.categories, name=category_name)
+                                if not category:
+                                    category = await guild.create_category(category_name)
+                                    created_info.append(f"kategorię **{category_name}**")
+                            
+                            # Tworzenie kanału tekstowego
+                            if text_name:
+                                await guild.create_text_channel(name=text_name.lower().replace(" ", "-"), category=category)
+                                created_info.append(f"kanał tekstowy **{text_name.lower().replace(' ', '-')}**")
+                                
+                            # Tworzenie kanału głosowego
+                            if voice_name:
+                                limit = None if user_limit <= 0 else user_limit
+                                await guild.create_voice_channel(name=voice_name.replace(" ", "-"), category=category, user_limit=limit)
+                                limit_txt = "bez limitu" if user_limit <= 0 else f"limit {user_limit} osób"
+                                created_info.append(f"kanał głosowy **{voice_name}** ({limit_txt})")
+                                
+                            if created_info:
+                                await message.reply(f"🤖 Rozkaz wykonany! Pomyślnie stworzyłem: {', '.join(created_info)}.")
+                            else:
+                                await message.reply("Nie zrozumiałem dokładnie, jakie kanały mam stworzyć. Spróbuj napisać np.: 'stwórz kategorię Gry a w niej kanał głosowy CS z limitem 3 osób'.")
+                            return
+                        except Exception as e:
+                            await message.reply(f"Błąd podczas automatycznego tworzenia kanałów: {e}")
+                            return
+                else:
+                    await message.reply("Nie masz uprawnień do zarządzania kanałami na tym serwerze.")
+                    return
+
+        # Domyślny bieg: Standardowa rozmowa z Gemini
         async with message.channel.typing():
             try:
-                # Pobierz lub utwórz sesję czatu dla danego kanału (obsługa pamięci kontekstu)
                 channel_id = str(message.channel.id)
                 if channel_id not in chat_sessions:
                     chat_sessions[channel_id] = model.start_chat(history=[])
                 
                 chat = chat_sessions[channel_id]
-                # Wysłanie pytania do Gemini i odebranie odpowiedzi
                 response = chat.send_message(prompt)
                 response_text = response.text
 
-                # Discord ma limit 2000 znaków na jedną wiadomość.
-                # Jeśli odpowiedź AI jest dłuższa, dzielimy ją na mniejsze części.
                 if len(response_text) > 2000:
                     for i in range(0, len(response_text), 2000):
                         await message.channel.send(response_text[i:i+2000])

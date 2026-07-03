@@ -1,6 +1,7 @@
 # .gitignore
 # Exclude secret keys
 .env
+kody.txt
 
 # Python caching and environment directories
 __pycache__/

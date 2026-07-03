@@ -6,8 +6,26 @@ from dotenv import load_dotenv
 
 # Wczytanie zmiennych środowiskowych z pliku .env
 load_dotenv()
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Słownik na wczytane klucze
+config_keys = {}
+
+# Wczytywanie kluczy z pliku kody.txt
+config_path = "kody.txt"
+if os.path.exists(config_path):
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    config_keys[k.strip().lower()] = v.strip()
+    except Exception as e:
+        print(f"Błąd podczas odczytu pliku kody.txt: {e}")
+
+DISCORD_TOKEN = config_keys.get("token")
+GEMINI_API_KEY = config_keys.get("api")
 
 # Konfiguracja Google Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
@@ -124,6 +142,6 @@ async def create_channels_error(ctx, error):
 # Uruchomienie bota
 if __name__ == "__main__":
     if not DISCORD_TOKEN or not GEMINI_API_KEY:
-        print("BŁĄD: Brak kluczy w pliku .env! Upewnij się, że uzupełniłeś DISCORD_TOKEN oraz GEMINI_API_KEY.")
+        print("BŁĄD: Brak kluczy w pliku kody.txt! Upewnij się, że utworzyłeś plik kody.txt z parametrami token oraz api.")
     else:
         bot.run(DISCORD_TOKEN)

@@ -139,6 +139,30 @@ async def create_channels_error(ctx, error):
     else:
         await ctx.send(f"Błąd komendy: {error}")
 
+# Komenda do czyszczenia wiadomości na kanale
+@bot.command(name="wyczysc")
+@commands.has_permissions(manage_messages=True)
+async def clear_messages(ctx, amount: int = 100):
+    """
+    Usuwa określoną liczbę wiadomości z kanału (domyślnie 100).
+    Użycie: !wyczysc [LiczbaWiadomosci]
+    Przykład: !wyczysc 50
+    """
+    try:
+        # Usuwamy najpierw samą komendę wywołującą, a potem 'amount' wiadomości
+        deleted = await ctx.channel.purge(limit=amount + 1)
+        # Krótka informacja zwrotna, która usunie się po 3 sekundach
+        await ctx.send(f"Pomyślnie usunięto {len(deleted) - 1} wiadomości.", delete_after=3.0)
+    except Exception as e:
+        await ctx.send(f"Wystąpił błąd podczas usuwania wiadomości: {e}")
+
+@clear_messages.error
+async def clear_messages_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("Nie masz uprawnień `Zarządzanie wiadomościami` (Manage Messages) do użycia tej komendy!")
+    else:
+        await ctx.send(f"Błąd komendy: {error}")
+
 # Uruchomienie bota
 if __name__ == "__main__":
     if not DISCORD_TOKEN or not GEMINI_API_KEY:

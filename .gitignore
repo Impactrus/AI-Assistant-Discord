@@ -1,0 +1,20 @@
+# .gitignore
+# Exclude secret keys
+.env
+
+# Python caching and environment directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.env
+.venv
+pip-wheel-metadata/
+.mypy_cache/
+.pytest_cache/
